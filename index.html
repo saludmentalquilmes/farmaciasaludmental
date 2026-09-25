@@ -128,6 +128,12 @@
   .alert-banner.warn { background: var(--warn-soft); color: var(--warn); }
   .alert-banner.danger { background: var(--danger-soft); color: var(--danger); }
   .alert-banner a.link-btn { color: inherit; }
+  .alert-banner .btn-cerrar-alerta { margin-left: auto; border: none; background: transparent; color: inherit; opacity: .65; cursor: pointer; font-size: 15px; padding: 2px 6px; line-height: 1; }
+  .alert-banner .btn-cerrar-alerta:hover { opacity: 1; }
+
+  .retiro-linea { display: grid; grid-template-columns: 2fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 10px; }
+  @media (max-width: 600px) { .retiro-linea { grid-template-columns: 1fr; } }
+  .retiro-linea .btn-quitar-linea { height: 38px; }
 </style>
 </head>
 <body>
@@ -198,13 +204,12 @@
         <form id="formRetiro">
           <div class="field-row">
             <div class="field"><label>Paciente</label><select id="retPaciente" required></select></div>
-            <div class="field"><label>Medicamento</label><select id="retMedicamento" required></select></div>
-          </div>
-          <div class="field-row">
-            <div class="field"><label>Cantidad</label><input type="number" id="retCantidad" min="1" step="1" required></div>
             <div class="field"><label>Fecha</label><input type="date" id="retFecha" required></div>
           </div>
-          <div class="field"><label>Nota (opcional)</label><input type="text" id="retNota" placeholder="Observaciones"></div>
+          <label style="display:block; font-size:12.5px; font-weight:600; color:var(--ink-muted); margin-bottom:6px;">Medicación a retirar</label>
+          <div id="retLineas"></div>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnAgregarLinea" style="margin-bottom:14px;">+ Agregar otro medicamento</button>
+          <div class="field"><label>Nota (opcional, aplica a todo el retiro)</label><input type="text" id="retNota" placeholder="Observaciones"></div>
           <button type="submit" class="btn btn-accent btn-block">Descontar del stock</button>
           <div id="msgRetiro"></div>
         </form>
@@ -415,32 +420,44 @@
   }
 
   // ---------- Banner de alerta de stock ----------
+  // Se puede cerrar (✕) para que no moleste; queda oculto hasta que la lista de medicamentos
+  // bajos/agotados cambie (se sume o se saque alguno) — ahí vuelve a aparecer solo.
   var ultimaAlertaClave = null;
+  function leerAlertaDescartada() { try { return localStorage.getItem("farmaciaAlertaDescartada") || ""; } catch (e) { return ""; } }
+  function guardarAlertaDescartada(clave) { try { localStorage.setItem("farmaciaAlertaDescartada", clave || ""); } catch (e) {} }
+
   function renderAlertBanner(meds) {
     var agotados = meds.filter(function (m) { return stockStatus(m) === "out"; });
     var bajos = meds.filter(function (m) { return stockStatus(m) === "low"; });
     var banner = $("alertBanner");
-    if (!agotados.length && !bajos.length) { banner.hidden = true; ultimaAlertaClave = null; return; }
+    if (!agotados.length && !bajos.length) { banner.hidden = true; ultimaAlertaClave = null; guardarAlertaDescartada(""); return; }
+
+    var clave = agotados.map(function (m) { return m.id; }).sort().join(",") + "|" + bajos.map(function (m) { return m.id; }).sort().join(",");
+    var esNueva = clave !== ultimaAlertaClave;
+    ultimaAlertaClave = clave;
+
     var partes = [];
     if (agotados.length) partes.push(agotados.length + " agotado(s): " + agotados.map(function (m) { return m.nombre; }).join(", "));
     if (bajos.length) partes.push(bajos.length + " con stock bajo: " + bajos.map(function (m) { return m.nombre; }).join(", "));
-    banner.className = "alert-banner " + (agotados.length ? "danger" : "warn");
-    banner.innerHTML = "⚠ " + escapeHtml(partes.join(" · ")) + ' — <a class="link-btn" id="btnVerAlertas">ver en Medicamentos</a>';
-    banner.hidden = false;
 
-    // Notificación del navegador (si el usuario la habilitó), una sola vez por combinación de alertas.
-    var clave = agotados.map(function (m) { return m.id; }).sort().join(",") + "|" + bajos.map(function (m) { return m.id; }).sort().join(",");
-    if (clave !== ultimaAlertaClave) {
-      ultimaAlertaClave = clave;
-      if (window.Notification && Notification.permission === "granted") {
-        try {
-          new Notification("Farmacia Salud Mental — alerta de stock", { body: partes.join(" · ") });
-        } catch (e) {}
-      }
+    if (leerAlertaDescartada() === clave) {
+      banner.hidden = true;
+    } else {
+      banner.className = "alert-banner " + (agotados.length ? "danger" : "warn");
+      banner.innerHTML = "⚠ " + escapeHtml(partes.join(" · ")) + ' — <a class="link-btn" id="btnVerAlertas">ver en Medicamentos</a>' +
+        '<button type="button" class="btn-cerrar-alerta" id="btnCerrarAlerta" title="Ocultar hasta que haya una novedad">✕</button>';
+      banner.hidden = false;
+    }
+
+    // Notificación del navegador (si el usuario la habilitó), una sola vez por combinación de alertas,
+    // se haya cerrado o no el cartel.
+    if (esNueva && window.Notification && Notification.permission === "granted") {
+      try { new Notification("Farmacia Salud Mental — alerta de stock", { body: partes.join(" · ") }); } catch (e) {}
     }
   }
   $("alertBanner").addEventListener("click", function (e) {
     if (e.target.closest("#btnVerAlertas")) goToTab("medicamentos");
+    if (e.target.closest("#btnCerrarAlerta")) { guardarAlertaDescartada(ultimaAlertaClave); $("alertBanner").hidden = true; }
   });
 
   document.addEventListener("click", function (e) {
@@ -476,7 +493,8 @@
     if (typeof renderCompra === "function") renderCompra();
     var options = '<option value="" disabled selected>Elegí un medicamento…</option>' + meds.map(function (m) { return '<option value="' + m.id + '">' + escapeHtml(m.nombre) + " (" + escapeHtml(m.unidad) + ")</option>"; }).join("");
     $("entMedicamento").innerHTML = options;
-    $("retMedicamento").innerHTML = options;
+    medOptionsHtml = options;
+    refrescarOpcionesLineas();
   }
 
   var medEditing = { id: null, field: null };
@@ -567,11 +585,65 @@
     return { cancelled: false };
   }
 
-  function showConfirmNegative(el, actual, cantidad, onConfirm) {
-    el.innerHTML = '<div class="msg warn">Stock registrado: ' + actual + '. Al retirar ' + cantidad + ' quedaría negativo. <button type="button" class="btn btn-accent btn-sm" id="confirmNegBtn" style="margin-left:6px;">Confirmar igual</button> <button type="button" class="btn btn-ghost btn-sm" id="cancelNegBtn">Cancelar</button></div>';
+  function showConfirmNegative(el, mensaje, onConfirm) {
+    el.innerHTML = '<div class="msg warn">' + escapeHtml(mensaje) + ' <button type="button" class="btn btn-accent btn-sm" id="confirmNegBtn" style="margin-left:6px;">Confirmar igual</button> <button type="button" class="btn btn-ghost btn-sm" id="cancelNegBtn">Cancelar</button></div>';
     document.getElementById("confirmNegBtn").addEventListener("click", function () { el.innerHTML = ""; onConfirm(); });
     document.getElementById("cancelNegBtn").addEventListener("click", function () { el.innerHTML = ""; });
   }
+
+  // ---------- Líneas de medicación en el retiro (varios medicamentos en un solo retiro) ----------
+  var medOptionsHtml = '<option value="" disabled selected>Elegí un medicamento…</option>';
+  function lineaRowHtml() {
+    return '<div class="retiro-linea">' +
+      '<div class="field" style="margin-bottom:0;"><select class="retLineaMed" required>' + medOptionsHtml + '</select></div>' +
+      '<div class="field" style="margin-bottom:0;"><input type="number" class="retLineaCant" min="1" step="1" placeholder="Cantidad" required></div>' +
+      '<button type="button" class="btn btn-ghost btn-sm btn-quitar-linea" title="Quitar este medicamento">✕</button>' +
+      '</div>';
+  }
+  function addRetiroLinea() {
+    $("retLineas").insertAdjacentHTML("beforeend", lineaRowHtml());
+    actualizarBotonesQuitarLinea();
+  }
+  function actualizarBotonesQuitarLinea() {
+    var filas = document.querySelectorAll("#retLineas .retiro-linea");
+    filas.forEach(function (fila) { fila.querySelector(".btn-quitar-linea").style.visibility = filas.length > 1 ? "visible" : "hidden"; });
+  }
+  function resetRetiroLineas() {
+    $("retLineas").innerHTML = "";
+    addRetiroLinea();
+  }
+  function refrescarOpcionesLineas() {
+    document.querySelectorAll("#retLineas .retLineaMed").forEach(function (sel) {
+      var val = sel.value;
+      sel.innerHTML = medOptionsHtml;
+      if (val) sel.value = val;
+    });
+  }
+  $("btnAgregarLinea").addEventListener("click", addRetiroLinea);
+  $("retLineas").addEventListener("click", function (e) {
+    var quitar = e.target.closest(".btn-quitar-linea");
+    if (!quitar) return;
+    var filas = document.querySelectorAll("#retLineas .retiro-linea");
+    if (filas.length > 1) quitar.closest(".retiro-linea").remove();
+    else { quitar.closest(".retiro-linea").querySelector(".retLineaMed").selectedIndex = 0; quitar.closest(".retiro-linea").querySelector(".retLineaCant").value = ""; }
+    actualizarBotonesQuitarLinea();
+  });
+  function collectRetiroLineas() {
+    var filas = Array.prototype.slice.call(document.querySelectorAll("#retLineas .retiro-linea"));
+    var lineas = [], vistos = {}, error = null;
+    filas.forEach(function (fila) {
+      var medId = fila.querySelector(".retLineaMed").value;
+      var cantidadStr = fila.querySelector(".retLineaCant").value;
+      if (!medId && !cantidadStr) return;
+      var cantidad = parseInt(cantidadStr, 10);
+      if (!medId || !cantidad || cantidad <= 0) { error = "Completá medicamento y una cantidad válida en todas las líneas cargadas."; return; }
+      if (vistos[medId]) { error = "No repitas el mismo medicamento en dos líneas — sumá la cantidad en una sola."; return; }
+      vistos[medId] = true;
+      lineas.push({ medicamentoId: medId, cantidad: cantidad });
+    });
+    return { lineas: lineas, error: error };
+  }
+  addRetiroLinea();
 
   $("entFecha").value = todayISO();
   $("retFecha").value = todayISO();
@@ -590,20 +662,39 @@
     finally { btn.disabled = false; }
   });
 
-  async function submitRetiro(forceNegative) {
+  async function submitRetiro(forceIds) {
+    forceIds = forceIds || [];
     var form = $("formRetiro"); var btn = form.querySelector("button[type=submit]"); btn.disabled = true;
     try {
-      var pacId = $("retPaciente").value, medId = $("retMedicamento").value, cantidad = parseInt($("retCantidad").value, 10);
-      if (!pacId || !medId || !cantidad || cantidad <= 0) throw new Error("Completá paciente, medicamento y una cantidad válida.");
+      var pacId = $("retPaciente").value;
+      if (!pacId) throw new Error("Elegí un paciente.");
+      var col = collectRetiroLineas();
+      if (col.error) throw new Error(col.error);
+      if (!col.lineas.length) throw new Error("Agregá al menos un medicamento y una cantidad.");
       var paciente = state.pacientes.find(function (p) { return p.id === pacId; });
-      var result = await registrarMovimiento({ tipo: "retiro", medicamentoId: medId, cantidad: cantidad, fecha: $("retFecha").value, nota: cleanText($("retNota").value), registradoPor: state.session.user.email, pacienteId: pacId, pacienteNombre: paciente ? paciente.nombre : "", forceNegative: !!forceNegative });
-      if (result.needsConfirm) { showConfirmNegative($("msgRetiro"), result.actual, cantidad, function () { submitRetiro(true); }); return; }
-      showMsg($("msgRetiro"), "Retiro registrado correctamente.", "ok");
-      form.reset(); $("retFecha").value = todayISO();
+      var fecha = $("retFecha").value, nota = cleanText($("retNota").value);
+      var pendientes = [], cantidadExitosos = 0;
+      for (var i = 0; i < col.lineas.length; i++) {
+        var l = col.lineas[i];
+        var result = await registrarMovimiento({ tipo: "retiro", medicamentoId: l.medicamentoId, cantidad: l.cantidad, fecha: fecha, nota: nota, registradoPor: state.session.user.email, pacienteId: pacId, pacienteNombre: paciente ? paciente.nombre : "", forceNegative: forceIds.indexOf(l.medicamentoId) > -1 });
+        if (result.needsConfirm) pendientes.push({ medicamentoId: l.medicamentoId, cantidad: l.cantidad, actual: result.actual });
+        else cantidadExitosos++;
+      }
+      if (pendientes.length) {
+        var detalle = pendientes.map(function (p) {
+          var m = state.medicamentos.find(function (mm) { return mm.id === p.medicamentoId; });
+          return (m ? m.nombre : "medicamento") + " (quedaría en " + (p.actual - p.cantidad) + ")";
+        }).join(", ");
+        var mensaje = "Con esta cantidad, " + detalle + " quedaría con stock negativo." + (cantidadExitosos ? " Los demás medicamentos de este retiro ya se descontaron." : "") + " ¿Confirmar igual?";
+        showConfirmNegative($("msgRetiro"), mensaje, function () { submitRetiro(forceIds.concat(pendientes.map(function (p) { return p.medicamentoId; }))); });
+        return;
+      }
+      showMsg($("msgRetiro"), "Retiro registrado correctamente" + (col.lineas.length > 1 ? " (" + col.lineas.length + " medicamentos)." : ".") , "ok");
+      form.reset(); $("retFecha").value = todayISO(); resetRetiroLineas();
     } catch (err) { showMsg($("msgRetiro"), err.message || "No se pudo registrar el retiro.", "err"); }
     finally { btn.disabled = false; }
   }
-  $("formRetiro").addEventListener("submit", function (e) { e.preventDefault(); submitRetiro(false); });
+  $("formRetiro").addEventListener("submit", function (e) { e.preventDefault(); submitRetiro([]); });
 
   $("formPaciente").addEventListener("submit", async function (e) {
     e.preventDefault();
@@ -904,3 +995,4 @@
 </script>
 </body>
 </html>
+
