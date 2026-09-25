@@ -335,8 +335,8 @@
       <div class="panel">
         <div class="panel-head"><h2>Estimación de compra</h2><span class="hint">Promedio de salida mensual y stock restante</span></div>
         <div class="table-wrap"><table>
-          <thead><tr><th>Medicamento</th><th class="num">Salida mensual promedio</th><th class="num">Stock actual</th><th class="num">Meses de stock</th><th></th></tr></thead>
-          <tbody id="compraBody"><tr><td colspan="5" class="empty-note">Calculando…</td></tr></tbody>
+          <thead><tr><th>Medicamento</th><th class="num">Salida mensual promedio</th><th class="num">Stock actual</th><th class="num">Meses de stock</th><th class="num" title="Sobre cuántos meses con salidas reales se calculó el promedio">Meses con datos</th><th></th></tr></thead>
+          <tbody id="compraBody"><tr><td colspan="6" class="empty-note">Calculando…</td></tr></tbody>
         </table></div>
         <div class="hint" id="compraHint" style="margin-top:8px;"></div>
         <div style="margin-top:12px;"><button class="btn btn-ghost" id="btnExportCompra">Exportar estimación (CSV)</button></div>
@@ -918,6 +918,12 @@
   });
 
   // ---------- Estimación de compra ----------
+  // Ojo con esta cuenta: un mes en CERO no siempre significa "nadie lo necesitó" — muchas veces
+  // significa que no había stock para entregar. Si promediáramos esos meses en cero junto con los
+  // demás, el promedio de salida mensual quedaría artificialmente bajo y la próxima compra saldría
+  // corta. Por eso el promedio de cada medicamento se calcula solo sobre los meses en que SÍ hubo
+  // salidas registradas (se ignoran los meses en cero de esa ventana, no se cuentan como "0 de más").
+  var MESES_VENTANA_COMPRA = 12;
   function normalizeMedName(s) { return String(s || "").toUpperCase().replace(/\s+/g, " ").replace(/\.$/, "").trim(); }
   function computeConsumoPromedio() {
     var porMesMed = {}, mesesSet = {};
@@ -932,35 +938,51 @@
       });
     });
     var mesesOrdenados = Object.keys(mesesSet).sort();
-    var ventana = mesesOrdenados.slice(-6);
-    var totales = {};
-    ventana.forEach(function (ym) { var pm = porMesMed[ym] || {}; Object.keys(pm).forEach(function (k) { totales[k] = (totales[k] || 0) + pm[k]; }); });
-    var numMeses = ventana.length || 1;
-    var promedios = {}; Object.keys(totales).forEach(function (k) { promedios[k] = totales[k] / numMeses; });
-    return { promedios: promedios, ventana: ventana };
+    var ventana = mesesOrdenados.slice(-MESES_VENTANA_COMPRA);
+
+    // Por cada medicamento, juntamos solo los meses de la ventana en que tuvo salidas > 0.
+    var porMed = {};
+    ventana.forEach(function (ym) {
+      var pm = porMesMed[ym] || {};
+      Object.keys(pm).forEach(function (k) {
+        if (pm[k] > 0) {
+          if (!porMed[k]) porMed[k] = { total: 0, mesesConDatos: 0 };
+          porMed[k].total += pm[k];
+          porMed[k].mesesConDatos += 1;
+        }
+      });
+    });
+    var promedios = {}, mesesConDatosPorMed = {};
+    Object.keys(porMed).forEach(function (k) {
+      promedios[k] = porMed[k].total / porMed[k].mesesConDatos;
+      mesesConDatosPorMed[k] = porMed[k].mesesConDatos;
+    });
+    return { promedios: promedios, mesesConDatosPorMed: mesesConDatosPorMed, ventana: ventana };
   }
   var compraRowsCache = [];
   function renderCompra() {
-    if (!historialData.length || !state.medicamentos.length) { $("compraBody").innerHTML = '<tr><td colspan="5" class="empty-note">Cargando datos…</td></tr>'; return; }
+    if (!historialData.length || !state.medicamentos.length) { $("compraBody").innerHTML = '<tr><td colspan="6" class="empty-note">Cargando datos…</td></tr>'; return; }
     var calc = computeConsumoPromedio();
     var rows = state.medicamentos.map(function (m) {
       var key = normalizeMedName(m.nombre); var prom = calc.promedios[key] || 0;
       var stock = Number(m.stock_actual || 0); var meses = prom > 0 ? (stock / prom) : null;
-      return { nombre: m.nombre, unidad: m.unidad, promedio: prom, stock: stock, meses: meses };
+      var mesesConDatos = calc.mesesConDatosPorMed[key] || 0;
+      return { nombre: m.nombre, unidad: m.unidad, promedio: prom, stock: stock, meses: meses, mesesConDatos: mesesConDatos };
     }).filter(function (r) { return r.promedio > 0; });
     rows.sort(function (a, b) { return (a.meses === null ? Infinity : a.meses) - (b.meses === null ? Infinity : b.meses); });
     compraRowsCache = rows;
-    if (!rows.length) { $("compraBody").innerHTML = '<tr><td colspan="5" class="empty-note">No se pudieron relacionar los nombres.</td></tr>'; return; }
+    if (!rows.length) { $("compraBody").innerHTML = '<tr><td colspan="6" class="empty-note">No se pudieron relacionar los nombres.</td></tr>'; return; }
     $("compraBody").innerHTML = rows.map(function (r) {
       var badge = r.meses === null ? "" : r.meses < 1 ? '<span class="badge out">Comprar ya</span>' : r.meses < 2 ? '<span class="badge low">Comprar pronto</span>' : '<span class="badge ok">OK</span>';
-      return "<tr><td>" + escapeHtml(r.nombre) + '</td><td class="num tabular">' + r.promedio.toFixed(0) + " " + escapeHtml(r.unidad) + '</td><td class="num tabular">' + r.stock + '</td><td class="num tabular">' + (r.meses === null ? "—" : r.meses.toFixed(1)) + "</td><td>" + badge + "</td></tr>";
+      var confiabilidad = r.mesesConDatos <= 2 ? (' title="Promedio calculado con muy pocos meses de datos (' + r.mesesConDatos + ')  tomalo con cuidado."') : "";
+      return "<tr" + confiabilidad + "><td>" + escapeHtml(r.nombre) + '</td><td class="num tabular">' + r.promedio.toFixed(0) + " " + escapeHtml(r.unidad) + '</td><td class="num tabular">' + r.stock + '</td><td class="num tabular">' + (r.meses === null ? "—" : r.meses.toFixed(1)) + '</td><td class="num tabular">' + r.mesesConDatos + "</td><td>" + badge + "</td></tr>";
     }).join("");
-    $("compraHint").textContent = "Promedio sobre " + calc.ventana.length + " mes(es) de la planilla anterior" + (calc.ventana.length ? " (" + calc.ventana[0] + " a " + calc.ventana[calc.ventana.length - 1] + ")" : "") + ".";
+    $("compraHint").textContent = "Promedio calculado solo con los meses en que cada medicamento tuvo salidas reales, de los últimos " + calc.ventana.length + " mes(es) de la planilla anterior" + (calc.ventana.length ? " (" + calc.ventana[0] + " a " + calc.ventana[calc.ventana.length - 1] + ")" : "") + ". Los meses en cero no cuentan en el promedio, porque suelen ser falta de stock y no falta de demanda. La columna \"Meses con datos\" te dice sobre cuántos meses se calculó cada promedio — con 1 o 2 meses tomalo con pinzas.";
   }
   $("btnExportCompra").addEventListener("click", function () {
     if (!compraRowsCache.length) { showMsg($("msgCompra"), "No hay datos para exportar.", "warn"); return; }
-    var lines = ["Medicamento,Unidad,Salida mensual promedio,Stock actual,Meses de stock"];
-    compraRowsCache.forEach(function (r) { lines.push([r.nombre, r.unidad, r.promedio.toFixed(1), r.stock, r.meses === null ? "" : r.meses.toFixed(1)].join(",")); });
+    var lines = ["Medicamento,Unidad,Salida mensual promedio,Stock actual,Meses de stock,Meses con datos"];
+    compraRowsCache.forEach(function (r) { lines.push([r.nombre, r.unidad, r.promedio.toFixed(1), r.stock, r.meses === null ? "" : r.meses.toFixed(1), r.mesesConDatos].join(",")); });
     downloadCsv(lines.join("\n"), "estimacion-compra.csv");
   });
 
