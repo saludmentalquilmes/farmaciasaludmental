@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Farmacia Salud Mental</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root {
+    --bg: #F1F4EE; --surface: #FFFFFF; --surface-alt: #E8EEE4; --border: #D3DCCC;
+    --ink: #1B231E; --ink-muted: #59685C;
+    --primary: #235C50; --primary-dark: #153E35; --primary-soft: #DCEAE4;
+    --accent: #7D5A75; --accent-soft: #EFE4EC;
+    --warn: #96700F; --warn-soft: #F5E7C8;
+    --danger: #A6433A; --danger-soft: #F6DEDA;
+    --success: #2F6B4C; --success-soft: #DBEBE0;
+    --shadow: 0 1px 2px rgba(20,30,24,0.06), 0 6px 20px -8px rgba(20,30,24,0.18);
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-body: 'Public Sans', -apple-system, Segoe UI, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131916; --surface: #1B2320; --surface-alt: #222B26; --border: #333F37;
+      --ink: #E8EDE7; --ink-muted: #9AAB9F;
+      --primary: #6FB6A2; --primary-dark: #4A8C79; --primary-soft: #223832;
+      --accent: #CDA9C4; --accent-soft: #35292F;
+      --warn: #DDB35B; --warn-soft: #3B2F17;
+      --danger: #E3897E; --danger-soft: #3A211E;
+      --success: #86C9A3; --success-soft: #1F3529;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px -8px rgba(0,0,0,0.5);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14.5px; line-height: 1.5; padding-bottom: 48px; }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
+  button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+  .tabular { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  [hidden] { display: none !important; }
+
+  /* ---- Login ---- */
+  #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; box-shadow: var(--shadow); max-width: 380px; width: 100%; }
+  .login-card h1 { font-size: 22px; margin-bottom: 6px; }
+  .login-card p.hint { color: var(--ink-muted); font-size: 13px; margin-bottom: 20px; }
+
+  header.topbar { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding: 14px 24px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 19px; font-weight: 600; white-space: nowrap; }
+  .brand-mark { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px; background: var(--primary); color: #fff; font-family: var(--font-display); font-size: 17px; flex: none; }
+  nav.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav.tabs button { border: none; background: transparent; color: var(--ink-muted); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background .15s, color .15s; }
+  nav.tabs button:hover { background: var(--surface-alt); color: var(--ink); }
+  nav.tabs button.active { background: var(--primary-soft); color: var(--primary-dark); }
+  .conn { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ink-muted); }
+  .conn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 24px; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 14px; margin-bottom: 22px; }
+  .stat-tile { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .stat-tile .label { font-size: 12px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  .stat-tile .value { font-family: var(--font-display); font-size: 30px; margin-top: 4px; }
+  .stat-tile.alert .value { color: var(--warn); }
+
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .panel-head h2 { font-size: 18px; }
+  .panel-head .hint { font-size: 12.5px; color: var(--ink-muted); }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-muted); font-weight: 600; }
+  tbody tr:hover { background: var(--surface-alt); }
+  .table-wrap { overflow-x: auto; }
+  .num { text-align: right; }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+  .badge.ok { background: var(--success-soft); color: var(--success); }
+  .badge.low { background: var(--warn-soft); color: var(--warn); }
+  .badge.out { background: var(--danger-soft); color: var(--danger); }
+  .badge.entrada { background: var(--success-soft); color: var(--success); }
+  .badge.retiro { background: var(--accent-soft); color: var(--accent); }
+  .badge.ajuste { background: var(--warn-soft); color: var(--warn); }
+
+  .stockbar { width: 84px; height: 6px; border-radius: 4px; background: var(--surface-alt); overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 8px; }
+  .stockbar > span { display: block; height: 100%; background: var(--success); }
+  .stockbar.low > span { background: var(--warn); }
+  .stockbar.out > span { background: var(--danger); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 760px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-muted); margin-bottom: 4px; }
+  .field input, .field select { width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); }
+  .field input:focus, .field select:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 16px; border-radius: 9px; border: 1px solid transparent; cursor: pointer; font-weight: 700; font-size: 13.5px; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-ghost { background: transparent; border-color: var(--border); color: var(--ink); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 7px; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+  .row-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+  .search-input { max-width: 280px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); }
+  .empty-note { color: var(--ink-muted); font-size: 13px; padding: 18px 4px; text-align: center; }
+  .msg { font-size: 12.5px; padding: 8px 10px; border-radius: 8px; margin-top: 10px; }
+  .msg.ok { background: var(--success-soft); color: var(--success); }
+  .msg.err { background: var(--danger-soft); color: var(--danger); }
+  .msg.warn { background: var(--warn-soft); color: var(--warn); }
+
+  .patient-detail { border-top: 1px dashed var(--border); margin-top: 14px; padding-top: 14px; }
+  .kicker { font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--accent); font-weight: 700; margin-bottom: 6px; }
+  .month-input { max-width: 180px; }
+  .totals-row td { font-weight: 700; border-top: 2px solid var(--border); border-bottom: none; }
+  a.link-btn { color: var(--primary-dark); font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .inline-edit { width: 84px; padding: 5px 7px; border-radius: 6px; border: 1px solid var(--primary); background: var(--bg); color: var(--ink); font-family: var(--font-mono); text-align: right; }
+
+  .alert-banner { position: sticky; top: 61px; z-index: 15; padding: 10px 24px; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .alert-banner.warn { background: var(--warn-soft); color: var(--warn); }
+  .alert-banner.danger { background: var(--danger-soft); color: var(--danger); }
+  .alert-banner a.link-btn { color: inherit; }
+</style>
+</head>
+<body>
+
+<!-- ====================== LOGIN ====================== -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h1>℞ Farmacia Salud Mental</h1>
+    <p class="hint">Ingresá con la cuenta que te dieron de alta en el sistema.</p>
+    <form id="formLogin">
+      <div class="field"><label>Email</label><input type="email" id="loginEmail" required autocomplete="username"></div>
+      <div class="field"><label>Contraseña</label><input type="password" id="loginPassword" required autocomplete="current-password"></div>
+      <button type="submit" class="btn btn-primary btn-block">Ingresar</button>
+      <div id="msgLogin"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ====================== APP ====================== -->
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">℞</span> Farmacia Salud Mental</div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="pacientes" class="active">Pacientes</button>
+      <button data-tab="movimientos">Retiros</button>
+      <button data-tab="historial">Historial anterior</button>
+      <button data-tab="dashboard">Panel</button>
+      <button data-tab="medicamentos">Medicamentos / Ingresos</button>
+      <button data-tab="reportes">Reportes</button>
+    </nav>
+    <div class="conn"><span class="dot"></span><span id="userEmail"></span> · <a class="link-btn" id="btnLogout">Salir</a></div>
+  </header>
+
+  <div id="alertBanner" class="alert-banner" hidden></div>
+
+  <main>
+    <!-- PACIENTES -->
+    <section id="view-pacientes" class="view active">
+      <div class="panel">
+        <div class="panel-head"><h2>Nuevo paciente</h2></div>
+        <form id="formPaciente">
+          <div class="field-row">
+            <div class="field"><label>Nombre y apellido</label><input type="text" id="pacNombre" required></div>
+            <div class="field"><label>DNI</label><input type="text" id="pacDni" inputmode="numeric" required></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Teléfono (opcional)</label><input type="text" id="pacTelefono"></div>
+            <div class="field"><label>Notas (opcional)</label><input type="text" id="pacNotas"></div>
+          </div>
+          <button type="submit" class="btn btn-primary">Agregar paciente</button>
+          <div id="msgPaciente"></div>
+        </form>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Pacientes</h2><input type="text" id="buscarPaciente" class="search-input" placeholder="Buscar por nombre o DNI…"></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Nombre</th><th>DNI</th><th>Teléfono</th><th></th></tr></thead>
+          <tbody id="pacBody"><tr><td colspan="4" class="empty-note">Cargando…</td></tr></tbody>
+        </table></div>
+        <div id="pacienteDetalle"></div>
+      </div>
+    </section>
+
+    <!-- RETIROS -->
+    <section id="view-movimientos" class="view">
+      <div class="panel">
+        <div class="panel-head"><h2>Registrar retiro</h2><span class="hint">Lo que se lleva un paciente</span></div>
+        <form id="formRetiro">
+          <div class="field-row">
+            <div class="field"><label>Paciente</label><select id="retPaciente" required></select></div>
+            <div class="field"><label>Medicamento</label><select id="retMedicamento" required></select></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Cantidad</label><input type="number" id="retCantidad" min="1" step="1" required></div>
+            <div class="field"><label>Fecha</label><input type="date" id="retFecha" required></div>
+          </div>
+          <div class="field"><label>Nota (opcional)</label><input type="text" id="retNota" placeholder="Observaciones"></div>
+          <button type="submit" class="btn btn-accent btn-block">Descontar del stock</button>
+          <div id="msgRetiro"></div>
+        </form>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Últimos retiros</h2>
+          <select id="filtroTipo" class="btn-sm" style="border-radius:7px;border:1px solid var(--border);padding:6px 8px;background:var(--surface);">
+            <option value="retiro">Retiros</option>
+            <option value="">Todos los movimientos</option>
+            <option value="entrada">Entradas</option>
+            <option value="ajuste">Ajustes</option>
+          </select>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Fecha</th><th>Tipo</th><th>Medicamento</th><th>Paciente</th><th class="num">Cantidad</th><th>Registrado por</th></tr></thead>
+          <tbody id="movBody"><tr><td colspan="6" class="empty-note">Cargando…</td></tr></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- HISTORIAL ANTERIOR -->
+    <section id="view-historial" class="view">
+      <div class="panel">
+        <div class="panel-head"><h2>Historial de la planilla anterior</h2><span class="hint">Solo consulta</span></div>
+        <div class="field" style="max-width:360px;"><label>Buscar paciente por nombre o DNI</label><input type="text" id="buscarHistorial" placeholder="Ej: 30123456 o García Marisa"></div>
+        <div id="historialResumen" class="empty-note">Escribí un nombre o DNI para ver sus retiros anteriores.</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Fecha</th><th>Paciente</th><th>DNI</th><th>Medicación retirada</th></tr></thead>
+          <tbody id="historialBody"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section id="view-dashboard" class="view">
+      <div class="stat-grid">
+        <div class="stat-tile"><div class="label">Medicamentos</div><div class="value tabular" id="statMeds">–</div></div>
+        <div class="stat-tile alert"><div class="label">Alertas de stock</div><div class="value tabular" id="statAlerts">–</div></div>
+        <div class="stat-tile"><div class="label">Retiros este mes</div><div class="value tabular" id="statRetirosMes">–</div></div>
+        <div class="stat-tile"><div class="label">Pacientes activos</div><div class="value tabular" id="statPacientes">–</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Stock actual</h2><span class="hint">Se actualiza para todo el equipo</span></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Medicamento</th><th>Unidad</th><th class="num">Stock</th><th>Estado</th></tr></thead>
+          <tbody id="dashStockBody"><tr><td colspan="4" class="empty-note">Cargando…</td></tr></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- MEDICAMENTOS -->
+    <section id="view-medicamentos" class="view">
+      <div class="panel">
+        <div class="panel-head"><h2>Registrar entrada de stock</h2><span class="hint">Ingreso mensual de medicación</span></div>
+        <form id="formEntrada">
+          <div class="field"><label>Medicamento</label><select id="entMedicamento" required></select></div>
+          <div class="field-row">
+            <div class="field"><label>Cantidad</label><input type="number" id="entCantidad" min="1" step="1" required></div>
+            <div class="field"><label>Fecha</label><input type="date" id="entFecha" required></div>
+          </div>
+          <div class="field"><label>Nota (opcional)</label><input type="text" id="entNota" placeholder="Ej: remito nº 4521"></div>
+          <button type="submit" class="btn btn-primary btn-block">Sumar al stock</button>
+          <div id="msgEntrada"></div>
+        </form>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Nuevo medicamento</h2></div>
+        <form id="formMedicamento">
+          <div class="field-row">
+            <div class="field"><label>Nombre</label><input type="text" id="medNombre" placeholder="Ej: CLONAZEPAM 2 MG COMP" required></div>
+            <div class="field"><label>Unidad</label><input type="text" id="medUnidad" placeholder="comprimidos, ampollas…" required></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Stock inicial</label><input type="number" id="medStockInicial" min="0" step="1" value="0" required></div>
+            <div class="field"><label>Stock mínimo (alerta)</label><input type="number" id="medStockMinimo" min="0" step="1" value="10" required></div>
+          </div>
+          <button type="submit" class="btn btn-primary">Agregar medicamento</button>
+          <div id="msgMedicamento"></div>
+        </form>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Vademecum</h2><input type="text" id="buscarMedicamento" class="search-input" placeholder="Buscar…"></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Nombre</th><th>Unidad</th><th class="num">Stock</th><th class="num">Mínimo</th><th></th></tr></thead>
+          <tbody id="medBody"><tr><td colspan="5" class="empty-note">Cargando…</td></tr></tbody>
+        </table></div>
+        <div id="msgVademecum"></div>
+      </div>
+    </section>
+
+    <!-- REPORTES -->
+    <section id="view-reportes" class="view">
+      <div class="panel">
+        <div class="panel-head"><h2>Backoffice — copia de seguridad</h2><span class="hint">Para tener siempre un respaldo prolijo, igual que el Excel viejo</span></div>
+        <p class="hint" style="margin-bottom:14px;">Estos tres botones descargan TODO lo cargado en el sistema (no solo lo reciente), listo para guardar como respaldo o para reconstruir el historial si hiciera falta.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-primary" id="btnExportPacientes">Descargar pacientes (CSV)</button>
+          <button class="btn btn-primary" id="btnExportHistoricoCompleto">Descargar historial completo de retiros (CSV)</button>
+          <button class="btn btn-primary" id="btnExportConsumoMensual">Descargar consumo mensual por medicamento (CSV)</button>
+        </div>
+        <div id="msgBackoffice"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Alertas de stock</h2><span class="hint">Cuándo y cómo avisa el sistema</span></div>
+        <p class="hint" style="margin-bottom:10px;">El mínimo que dispara la alerta se define por medicamento: en <a class="link-btn" data-goto="medicamentos">Medicamentos/Ingresos → Vademecum</a>, botón "Editar mínimo". Cuando un medicamento queda en o por debajo de ese número, aparece el aviso arriba de todas las pantallas.</p>
+        <button type="button" class="btn btn-ghost" id="btnActivarNotif">Activar notificaciones del navegador</button>
+        <span class="hint" id="notifEstado" style="margin-left:10px;"></span>
+        <p class="hint" style="margin-top:12px;">¿Querés que además te avise por mail una vez al día si algo está bajo? Es un paso aparte (no se hace desde acá) — está explicado en el instructivo, sección "Alertas por email".</p>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Estimación de compra</h2><span class="hint">Promedio de salida mensual y stock restante</span></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Medicamento</th><th class="num">Salida mensual promedio</th><th class="num">Stock actual</th><th class="num">Meses de stock</th><th></th></tr></thead>
+          <tbody id="compraBody"><tr><td colspan="5" class="empty-note">Calculando…</td></tr></tbody>
+        </table></div>
+        <div class="hint" id="compraHint" style="margin-top:8px;"></div>
+        <div style="margin-top:12px;"><button class="btn btn-ghost" id="btnExportCompra">Exportar estimación (CSV)</button></div>
+        <div id="msgCompra"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Resumen mensual</h2><span class="hint">Entradas y retiros por medicamento</span></div>
+        <div class="field" style="max-width:220px;"><label>Mes</label><input type="month" id="repMes" class="month-input"></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Medicamento</th><th class="num">Entradas</th><th class="num">Retiros</th><th class="num">Ajustes</th><th class="num">Balance</th></tr></thead>
+          <tbody id="repBody"><tr><td colspan="5" class="empty-note">Elegí un mes para ver el resumen.</td></tr></tbody>
+        </table></div>
+        <div style="margin-top:14px; display:flex; gap:10px; align-items:center;"><button class="btn btn-ghost" id="btnExportCsv">Exportar CSV</button><span class="hint" id="repHint"></span></div>
+        <div id="msgReporte"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ====== CONFIGURACIÓN: completar con los datos de tu proyecto Supabase ======
+  var SUPABASE_URL = "https://fbgexyjvkyvzccqzziti.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_pRVhrrs5sGMVynvEX27pLw_6B7cqYOu";
+  // =============================================================================
+
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  var state = { medicamentos: [], pacientes: [], movRecientes: [], session: null };
+
+  function $(id) { return document.getElementById(id); }
+  function fmtDate(d) { if (!d) return ""; var p = String(d).slice(0, 10).split("-"); return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : d; }
+  function todayISO() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function escapeHtml(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function cleanText(v) { return String(v == null ? "" : v).replace(/[\t\n\r]+/g, " ").replace(/\s+/g, " ").trim(); }
+  function showMsg(el, text, kind) { el.innerHTML = '<div class="msg ' + kind + '">' + escapeHtml(text) + "</div>"; setTimeout(function () { if (el) el.innerHTML = ""; }, 5000); }
+
+  // ---------- LOGIN ----------
+  $("formLogin").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var btn = e.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    var email = $("loginEmail").value.trim();
+    var password = $("loginPassword").value;
+    var { data, error } = await sb.auth.signInWithPassword({ email: email, password: password });
+    btn.disabled = false;
+    if (error) { showMsg($("msgLogin"), "No se pudo ingresar: revisá el email y la contraseña.", "err"); return; }
+    onLogin(data.session);
+  });
+
+  $("btnLogout").addEventListener("click", async function () {
+    await sb.auth.signOut();
+    window.location.reload();
+  });
+
+  function onLogin(session) {
+    state.session = session;
+    $("loginScreen").hidden = true;
+    $("app").hidden = false;
+    $("userEmail").textContent = session.user.email;
+    loadAll();
+  }
+
+  (async function checkSession() {
+    var { data } = await sb.auth.getSession();
+    if (data && data.session) onLogin(data.session);
+  })();
+
+  // ---------- Tabs ----------
+  function goToTab(tab) {
+    document.querySelectorAll("nav.tabs button").forEach(function (b) { b.classList.toggle("active", b.dataset.tab === tab); });
+    document.querySelectorAll(".view").forEach(function (v) { v.classList.remove("active"); });
+    $("view-" + tab).classList.add("active");
+    if (tab === "reportes" && $("repMes").value) renderReporte();
+  }
+  $("tabs").addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-tab]");
+    if (btn) goToTab(btn.dataset.tab);
+  });
+
+  // ---------- Stock helpers ----------
+  function stockStatus(m) {
+    var s = Number(m.stock_actual || 0), min = Number(m.stock_minimo || 0);
+    if (s <= 0) return "out"; if (s <= min) return "low"; return "ok";
+  }
+  function statusBadge(s) { return s === "out" ? '<span class="badge out">Agotado</span>' : s === "low" ? '<span class="badge low">Stock bajo</span>' : '<span class="badge ok">OK</span>'; }
+  function stockBarHtml(m) {
+    var status = stockStatus(m); var min = Number(m.stock_minimo || 0) || 1;
+    var pct = Math.max(4, Math.min(100, (Number(m.stock_actual || 0) / (min * 3)) * 100));
+    return '<span class="stockbar ' + (status === "ok" ? "" : status) + '"><span style="width:' + pct + '%"></span></span>';
+  }
+
+  // ---------- Banner de alerta de stock ----------
+  var ultimaAlertaClave = null;
+  function renderAlertBanner(meds) {
+    var agotados = meds.filter(function (m) { return stockStatus(m) === "out"; });
+    var bajos = meds.filter(function (m) { return stockStatus(m) === "low"; });
+    var banner = $("alertBanner");
+    if (!agotados.length && !bajos.length) { banner.hidden = true; ultimaAlertaClave = null; return; }
+    var partes = [];
+    if (agotados.length) partes.push(agotados.length + " agotado(s): " + agotados.map(function (m) { return m.nombre; }).join(", "));
+    if (bajos.length) partes.push(bajos.length + " con stock bajo: " + bajos.map(function (m) { return m.nombre; }).join(", "));
+    banner.className = "alert-banner " + (agotados.length ? "danger" : "warn");
+    banner.innerHTML = "⚠ " + escapeHtml(partes.join(" · ")) + ' — <a class="link-btn" id="btnVerAlertas">ver en Medicamentos</a>';
+    banner.hidden = false;
+
+    // Notificación del navegador (si el usuario la habilitó), una sola vez por combinación de alertas.
+    var clave = agotados.map(function (m) { return m.id; }).sort().join(",") + "|" + bajos.map(function (m) { return m.id; }).sort().join(",");
+    if (clave !== ultimaAlertaClave) {
+      ultimaAlertaClave = clave;
+      if (window.Notification && Notification.permission === "granted") {
+        try {
+          new Notification("Farmacia Salud Mental — alerta de stock", { body: partes.join(" · ") });
+        } catch (e) {}
+      }
+    }
+  }
+  $("alertBanner").addEventListener("click", function (e) {
+    if (e.target.closest("#btnVerAlertas")) goToTab("medicamentos");
+  });
+
+  document.addEventListener("click", function (e) {
+    var goto = e.target.closest("[data-goto]");
+    if (goto) { e.preventDefault(); goToTab(goto.dataset.goto); }
+  });
+
+  function actualizarEstadoNotif() {
+    var el = $("notifEstado"); if (!el) return;
+    if (!window.Notification) { el.textContent = "Este navegador no soporta notificaciones."; return; }
+    if (Notification.permission === "granted") el.textContent = "Activadas ✓";
+    else if (Notification.permission === "denied") el.textContent = "Bloqueadas por el navegador (activalas desde la configuración del sitio).";
+    else el.textContent = "No activadas todavía.";
+  }
+  var btnActivarNotif = $("btnActivarNotif");
+  if (btnActivarNotif) {
+    btnActivarNotif.addEventListener("click", function () {
+      if (!window.Notification) { actualizarEstadoNotif(); return; }
+      Notification.requestPermission().then(function () { actualizarEstadoNotif(); });
+    });
+    actualizarEstadoNotif();
+  }
+
+  function renderMedicamentosDependents() {
+    var meds = state.medicamentos.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre); });
+    $("dashStockBody").innerHTML = meds.length ? meds.map(function (m) {
+      return "<tr><td>" + escapeHtml(m.nombre) + "</td><td>" + escapeHtml(m.unidad) + '</td><td class="num tabular">' + stockBarHtml(m) + Number(m.stock_actual || 0) + "</td><td>" + statusBadge(stockStatus(m)) + "</td></tr>";
+    }).join("") : '<tr><td colspan="4" class="empty-note">Todavía no hay medicamentos cargados.</td></tr>';
+    $("statMeds").textContent = meds.length;
+    $("statAlerts").textContent = meds.filter(function (m) { return stockStatus(m) !== "ok"; }).length;
+    renderAlertBanner(meds);
+    renderMedTable();
+    if (typeof renderCompra === "function") renderCompra();
+    var options = '<option value="" disabled selected>Elegí un medicamento…</option>' + meds.map(function (m) { return '<option value="' + m.id + '">' + escapeHtml(m.nombre) + " (" + escapeHtml(m.unidad) + ")</option>"; }).join("");
+    $("entMedicamento").innerHTML = options;
+    $("retMedicamento").innerHTML = options;
+  }
+
+  var medEditing = { id: null, field: null };
+  function renderMedTable() {
+    var q = $("buscarMedicamento").value.toLowerCase().trim();
+    var meds = state.medicamentos.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre); });
+    var filtered = meds.filter(function (m) { return !q || m.nombre.toLowerCase().indexOf(q) > -1; });
+    if (!filtered.length) { $("medBody").innerHTML = '<tr><td colspan="5" class="empty-note">Sin medicamentos que coincidan.</td></tr>'; return; }
+    $("medBody").innerHTML = filtered.map(function (m) {
+      var editingStock = medEditing.id === m.id && medEditing.field === "stock";
+      var editingMin = medEditing.id === m.id && medEditing.field === "min";
+      var stockCell = editingStock ? '<input type="number" min="0" step="1" class="inline-edit" id="editInput" value="' + Number(m.stock_actual || 0) + '">' : Number(m.stock_actual || 0);
+      var minCell = editingMin ? '<input type="number" min="0" step="1" class="inline-edit" id="editInput" value="' + Number(m.stock_minimo || 0) + '">' : Number(m.stock_minimo || 0);
+      var actions = (editingStock || editingMin)
+        ? '<button type="button" class="btn btn-primary btn-sm" data-save="' + m.id + '" data-field="' + (editingStock ? "stock" : "min") + '">Guardar</button> <button type="button" class="btn btn-ghost btn-sm" data-canceledit="1">Cancelar</button>'
+        : '<button type="button" class="btn btn-ghost btn-sm" data-adjust="' + m.id + '">Ajustar stock</button><button type="button" class="btn btn-ghost btn-sm" data-editmin="' + m.id + '">Editar mínimo</button>';
+      return "<tr><td>" + escapeHtml(m.nombre) + "</td><td>" + escapeHtml(m.unidad) + '</td><td class="num tabular">' + stockCell + '</td><td class="num tabular">' + minCell + '</td><td class="row-actions">' + actions + "</td></tr>";
+    }).join("");
+    var input = document.getElementById("editInput");
+    if (input) { input.focus(); input.select(); }
+  }
+
+  function renderPacientesDependents() {
+    var q = ($("buscarPaciente").value || "").toLowerCase().trim();
+    var pacientes = state.pacientes.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre); });
+    var filtered = pacientes.filter(function (p) { return !q || (p.nombre || "").toLowerCase().indexOf(q) > -1 || (p.dni || "").toLowerCase().indexOf(q) > -1; });
+    $("pacBody").innerHTML = filtered.length ? filtered.map(function (p) {
+      return '<tr data-paciente="' + p.id + '"><td>' + escapeHtml(p.nombre) + "</td><td>" + escapeHtml(p.dni || "—") + "</td><td>" + escapeHtml(p.telefono || "—") + '</td><td class="row-actions"><a class="link-btn" data-paciente="' + p.id + '">Ver historial</a><button type="button" class="btn btn-accent btn-sm" data-retiro="' + p.id + '">Registrar retiro</button></td></tr>';
+    }).join("") : '<tr><td colspan="4" class="empty-note">Sin pacientes que coincidan.</td></tr>';
+    var options = '<option value="" disabled selected>Elegí un paciente…</option>' + pacientes.map(function (p) { return '<option value="' + p.id + '">' + escapeHtml(p.nombre) + (p.dni ? " (" + escapeHtml(p.dni) + ")" : "") + "</option>"; }).join("");
+    $("retPaciente").innerHTML = options;
+    $("statPacientes").textContent = pacientes.length;
+  }
+
+  function movTipoBadge(tipo) { return '<span class="badge ' + tipo + '">' + (tipo === "entrada" ? "Entrada" : tipo === "retiro" ? "Retiro" : "Ajuste") + "</span>"; }
+  function renderMovimientos() {
+    var tipoFiltro = $("filtroTipo").value;
+    var list = state.movRecientes.filter(function (m) { return !tipoFiltro || m.tipo === tipoFiltro; });
+    $("movBody").innerHTML = list.length ? list.map(function (m) {
+      return "<tr><td>" + fmtDate(m.fecha) + "</td><td>" + movTipoBadge(m.tipo) + "</td><td>" + escapeHtml(m.medicamento_nombre) + "</td><td>" + escapeHtml(m.paciente_nombre || "—") + '</td><td class="num tabular">' + (m.tipo === "retiro" ? "-" : "+") + Number(m.cantidad || 0) + "</td><td>" + escapeHtml(m.registrado_por || "—") + "</td></tr>";
+    }).join("") : '<tr><td colspan="6" class="empty-note">Sin movimientos registrados todavía.</td></tr>';
+    var mesActual = todayISO().slice(0, 7);
+    $("statRetirosMes").textContent = state.movRecientes.filter(function (m) { return m.tipo === "retiro" && (m.fecha || "").slice(0, 7) === mesActual; }).length;
+  }
+
+  // ---------- Carga inicial + tiempo real ----------
+  async function loadAll() {
+    var [meds, pacs, movs] = await Promise.all([
+      sb.from("medicamentos").select("*"),
+      sb.from("pacientes").select("*"),
+      sb.from("movimientos").select("*").order("creado_en", { ascending: false }).limit(60)
+    ]);
+    state.medicamentos = meds.data || [];
+    state.pacientes = pacs.data || [];
+    state.movRecientes = movs.data || [];
+    renderMedicamentosDependents();
+    renderPacientesDependents();
+    renderMovimientos();
+
+    sb.channel("public:medicamentos").on("postgres_changes", { event: "*", schema: "public", table: "medicamentos" }, async function () {
+      var r = await sb.from("medicamentos").select("*"); state.medicamentos = r.data || []; renderMedicamentosDependents();
+    }).subscribe();
+    sb.channel("public:pacientes").on("postgres_changes", { event: "*", schema: "public", table: "pacientes" }, async function () {
+      var r = await sb.from("pacientes").select("*"); state.pacientes = r.data || []; renderPacientesDependents();
+    }).subscribe();
+    sb.channel("public:movimientos").on("postgres_changes", { event: "*", schema: "public", table: "movimientos" }, async function () {
+      var r = await sb.from("movimientos").select("*").order("creado_en", { ascending: false }).limit(60);
+      state.movRecientes = r.data || []; renderMovimientos();
+    }).subscribe();
+  }
+
+  // ---------- Movimientos ----------
+  async function registrarMovimiento(opts) {
+    var { data: med, error: e1 } = await sb.from("medicamentos").select("*").eq("id", opts.medicamentoId).single();
+    if (e1 || !med) throw new Error("El medicamento ya no existe.");
+    var actual = Number(med.stock_actual || 0);
+    var delta = opts.tipo === "retiro" ? -opts.cantidad : opts.cantidad;
+    var nuevo = actual + delta;
+    if (opts.tipo === "retiro" && nuevo < 0 && !opts.forceNegative) return { needsConfirm: true, actual: actual };
+    var { error: e2 } = await sb.from("medicamentos").update({ stock_actual: nuevo }).eq("id", opts.medicamentoId);
+    if (e2) throw new Error("No se pudo actualizar el stock.");
+    var { error: e3 } = await sb.from("movimientos").insert({
+      tipo: opts.tipo, medicamento_id: opts.medicamentoId, medicamento_nombre: med.nombre, cantidad: opts.cantidad,
+      fecha: opts.fecha, nota: opts.nota || "", registrado_por: opts.registradoPor || "",
+      paciente_id: opts.pacienteId || null, paciente_nombre: opts.pacienteNombre || null
+    });
+    if (e3) throw new Error("No se pudo guardar el movimiento.");
+    return { cancelled: false };
+  }
+
+  function showConfirmNegative(el, actual, cantidad, onConfirm) {
+    el.innerHTML = '<div class="msg warn">Stock registrado: ' + actual + '. Al retirar ' + cantidad + ' quedaría negativo. <button type="button" class="btn btn-accent btn-sm" id="confirmNegBtn" style="margin-left:6px;">Confirmar igual</button> <button type="button" class="btn btn-ghost btn-sm" id="cancelNegBtn">Cancelar</button></div>';
+    document.getElementById("confirmNegBtn").addEventListener("click", function () { el.innerHTML = ""; onConfirm(); });
+    document.getElementById("cancelNegBtn").addEventListener("click", function () { el.innerHTML = ""; });
+  }
+
+  $("entFecha").value = todayISO();
+  $("retFecha").value = todayISO();
+
+  $("formEntrada").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var btn = e.target.querySelector("button[type=submit]"); btn.disabled = true;
+    try {
+      var medId = $("entMedicamento").value;
+      var cantidad = parseInt($("entCantidad").value, 10);
+      if (!medId || !cantidad || cantidad <= 0) throw new Error("Completá medicamento y una cantidad válida.");
+      await registrarMovimiento({ tipo: "entrada", medicamentoId: medId, cantidad: cantidad, fecha: $("entFecha").value, nota: cleanText($("entNota").value), registradoPor: state.session.user.email });
+      showMsg($("msgEntrada"), "Entrada registrada correctamente.", "ok");
+      e.target.reset(); $("entFecha").value = todayISO();
+    } catch (err) { showMsg($("msgEntrada"), err.message || "No se pudo registrar la entrada.", "err"); }
+    finally { btn.disabled = false; }
+  });
+
+  async function submitRetiro(forceNegative) {
+    var form = $("formRetiro"); var btn = form.querySelector("button[type=submit]"); btn.disabled = true;
+    try {
+      var pacId = $("retPaciente").value, medId = $("retMedicamento").value, cantidad = parseInt($("retCantidad").value, 10);
+      if (!pacId || !medId || !cantidad || cantidad <= 0) throw new Error("Completá paciente, medicamento y una cantidad válida.");
+      var paciente = state.pacientes.find(function (p) { return p.id === pacId; });
+      var result = await registrarMovimiento({ tipo: "retiro", medicamentoId: medId, cantidad: cantidad, fecha: $("retFecha").value, nota: cleanText($("retNota").value), registradoPor: state.session.user.email, pacienteId: pacId, pacienteNombre: paciente ? paciente.nombre : "", forceNegative: !!forceNegative });
+      if (result.needsConfirm) { showConfirmNegative($("msgRetiro"), result.actual, cantidad, function () { submitRetiro(true); }); return; }
+      showMsg($("msgRetiro"), "Retiro registrado correctamente.", "ok");
+      form.reset(); $("retFecha").value = todayISO();
+    } catch (err) { showMsg($("msgRetiro"), err.message || "No se pudo registrar el retiro.", "err"); }
+    finally { btn.disabled = false; }
+  }
+  $("formRetiro").addEventListener("submit", function (e) { e.preventDefault(); submitRetiro(false); });
+
+  $("formPaciente").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var nombre = cleanText($("pacNombre").value);
+    var dni = cleanText($("pacDni").value).replace(/[.\s]/g, "");
+    if (!nombre || !dni) { showMsg($("msgPaciente"), "El nombre y el DNI son obligatorios.", "err"); return; }
+    var { error } = await sb.from("pacientes").insert({ nombre: nombre, dni: dni, telefono: cleanText($("pacTelefono").value), notas: cleanText($("pacNotas").value) });
+    if (error) {
+      showMsg($("msgPaciente"), error.code === "23505" ? "Ya hay un paciente cargado con ese DNI." : "No se pudo agregar el paciente.", "err");
+      return;
+    }
+    showMsg($("msgPaciente"), "Paciente agregado.", "ok");
+    e.target.reset();
+  });
+
+  $("formMedicamento").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var nombre = $("medNombre").value.trim(), unidad = $("medUnidad").value.trim();
+    if (!nombre || !unidad) return;
+    var { error } = await sb.from("medicamentos").insert({ nombre: nombre, unidad: unidad, stock_actual: parseInt($("medStockInicial").value, 10) || 0, stock_minimo: parseInt($("medStockMinimo").value, 10) || 0 });
+    if (error) { showMsg($("msgMedicamento"), error.code === "23505" ? "Ya existe un medicamento con ese nombre." : "No se pudo agregar el medicamento.", "err"); return; }
+    showMsg($("msgMedicamento"), "Medicamento agregado.", "ok");
+    e.target.reset(); $("medStockMinimo").value = 10; $("medStockInicial").value = 0;
+  });
+
+  $("medBody").addEventListener("click", async function (e) {
+    var adjustBtn = e.target.closest("button[data-adjust]"), minBtn = e.target.closest("button[data-editmin]"),
+      saveBtn = e.target.closest("button[data-save]"), cancelBtn = e.target.closest("button[data-canceledit]");
+    if (adjustBtn) { medEditing = { id: adjustBtn.dataset.adjust, field: "stock" }; renderMedTable(); return; }
+    if (minBtn) { medEditing = { id: minBtn.dataset.editmin, field: "min" }; renderMedTable(); return; }
+    if (cancelBtn) { medEditing = { id: null, field: null }; renderMedTable(); return; }
+    if (saveBtn) {
+      var id = saveBtn.dataset.save, field = saveBtn.dataset.field;
+      var med = state.medicamentos.find(function (m) { return m.id === id; });
+      var input = document.getElementById("editInput");
+      var val = parseInt(input ? input.value : "", 10);
+      if (!med || isNaN(val) || val < 0) { showMsg($("msgVademecum"), "Ingresá un número válido.", "err"); return; }
+      saveBtn.disabled = true;
+      try {
+        if (field === "stock") {
+          var diferencia = val - Number(med.stock_actual || 0);
+          var r1 = await sb.from("medicamentos").update({ stock_actual: val }).eq("id", id).select();
+          if (r1.error) throw r1.error;
+          if (!r1.data || !r1.data.length) throw new Error("No se guardaron cambios (revisá los permisos del usuario en Supabase).");
+          if (diferencia !== 0) {
+            var r2 = await sb.from("movimientos").insert({ tipo: "ajuste", medicamento_id: id, medicamento_nombre: med.nombre, cantidad: Math.abs(diferencia), fecha: todayISO(), nota: "Corrección manual de stock (" + (diferencia >= 0 ? "+" : "") + diferencia + ")", registrado_por: state.session.user.email });
+            if (r2.error) throw r2.error;
+          }
+          // Reflejamos el cambio ya mismo en el estado local, sin esperar al realtime.
+          med.stock_actual = val;
+        } else {
+          var r3 = await sb.from("medicamentos").update({ stock_minimo: val }).eq("id", id).select();
+          if (r3.error) throw r3.error;
+          if (!r3.data || !r3.data.length) throw new Error("No se guardaron cambios (revisá los permisos del usuario en Supabase).");
+          med.stock_minimo = val;
+        }
+        medEditing = { id: null, field: null };
+        renderMedicamentosDependents();
+        showMsg($("msgVademecum"), "Guardado.", "ok");
+      } catch (err) {
+        saveBtn.disabled = false;
+        showMsg($("msgVademecum"), "No se pudo guardar: " + (err && err.message ? err.message : "error desconocido") + ".", "err");
+      }
+    }
+  });
+  $("medBody").addEventListener("keydown", function (e) {
+    if (e.target && e.target.id === "editInput") {
+      if (e.key === "Enter") { e.preventDefault(); e.target.closest("tr").querySelector("button[data-save]").click(); }
+      if (e.key === "Escape") { e.preventDefault(); medEditing = { id: null, field: null }; renderMedTable(); }
+    }
+  });
+
+  $("buscarMedicamento").addEventListener("input", renderMedTable);
+  $("buscarPaciente").addEventListener("input", renderPacientesDependents);
+  $("filtroTipo").addEventListener("change", renderMovimientos);
+
+  $("pacBody").addEventListener("click", async function (e) {
+    var retiroBtn = e.target.closest("button[data-retiro]");
+    if (retiroBtn) { goToTab("movimientos"); $("retPaciente").value = retiroBtn.dataset.retiro; return; }
+    var el = e.target.closest("[data-paciente]");
+    if (!el) return;
+    var pacId = el.dataset.paciente;
+    var paciente = state.pacientes.find(function (p) { return p.id === pacId; });
+    if (!paciente) return;
+    $("pacienteDetalle").innerHTML = '<div class="patient-detail"><div class="kicker">Historial</div><div class="empty-note">Cargando…</div></div>';
+    var { data: movs } = await sb.from("movimientos").select("*").eq("paciente_id", pacId).order("fecha", { ascending: false });
+    movs = movs || [];
+    var rows = movs.length ? movs.map(function (m) {
+      return "<tr><td>" + fmtDate(m.fecha) + "</td><td>" + escapeHtml(m.medicamento_nombre) + '</td><td class="num tabular">' + Number(m.cantidad || 0) + "</td><td>" + escapeHtml(m.registrado_por || "—") + "</td><td>" + escapeHtml(m.nota || "—") + "</td></tr>";
+    }).join("") : '<tr><td colspan="5" class="empty-note">Todavía no se registró ningún retiro para este paciente.</td></tr>';
+    $("pacienteDetalle").innerHTML = '<div class="patient-detail"><div class="kicker">Historial de ' + escapeHtml(paciente.nombre) + (paciente.dni ? " (DNI " + escapeHtml(paciente.dni) + ")" : "") + '</div><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Medicamento</th><th class="num">Cantidad</th><th>Registrado por</th><th>Nota</th></tr></thead><tbody>' + rows + "</tbody></table></div></div>";
+  });
+
+  // ---------- Historial anterior (planilla vieja) ----------
+  var historialData = [];
+  fetch("historial.tsv").then(function (r) { return r.ok ? r.text() : ""; }).then(function (text) {
+    text.split("\n").forEach(function (line) {
+      if (!line) return;
+      var parts = line.split("\t");
+      var meds = (parts[3] || "") ? parts[3].split("|").map(function (s) {
+        var idx = s.lastIndexOf("="); return idx === -1 ? { nombre: s, cantidad: "" } : { nombre: s.slice(0, idx), cantidad: s.slice(idx + 1) };
+      }) : [];
+      historialData.push({ dni: parts[0] || "", nombre: parts[1] || "", fecha: parts[2] || "", meds: meds });
+    });
+  }).catch(function () {});
+
+  function medsToText(meds) { return meds.map(function (m) { return m.nombre + (m.cantidad ? " (" + m.cantidad + ")" : ""); }).join(", "); }
+  var historialDebounce = null;
+  $("buscarHistorial").addEventListener("input", function () { clearTimeout(historialDebounce); var q = this.value; historialDebounce = setTimeout(function () { renderHistorial(q); }, 150); });
+
+  function renderHistorial(q) {
+    q = (q || "").toLowerCase().trim();
+    if (!q) { $("historialResumen").textContent = "Escribí un nombre o DNI para ver sus retiros anteriores."; $("historialBody").innerHTML = ""; return; }
+    var qDni = q.replace(/[.\s]/g, "");
+    var matches = historialData.filter(function (r) { return (qDni && r.dni && r.dni.indexOf(qDni) > -1) || r.nombre.toLowerCase().indexOf(q) > -1; });
+    if (!matches.length) { $("historialResumen").innerHTML = "Sin coincidencias en la planilla anterior."; $("historialBody").innerHTML = ""; return; }
+    matches = matches.slice().sort(function (a, b) { return (b.fecha || "").localeCompare(a.fecha || ""); });
+    var shown = matches.slice(0, 300);
+    var uniquePatients = {}; matches.forEach(function (r) { if (r.dni) uniquePatients[r.dni] = r.nombre; });
+    var dnis = Object.keys(uniquePatients);
+    var resumenHtml = matches.length + " registro(s) en " + dnis.length + " paciente(s)";
+    if (dnis.length === 1) resumenHtml += ' · <a class="link-btn" id="cargarComoPaciente" data-dni="' + escapeHtml(dnis[0]) + '" data-nombre="' + escapeHtml(uniquePatients[dnis[0]]) + '">Cargar como paciente activo</a>';
+    if (matches.length > shown.length) resumenHtml += " (mostrando los " + shown.length + " más recientes)";
+    $("historialResumen").innerHTML = resumenHtml;
+    $("historialBody").innerHTML = shown.map(function (r) { return "<tr><td>" + fmtDate(r.fecha) + "</td><td>" + escapeHtml(r.nombre) + "</td><td>" + escapeHtml(r.dni || "—") + "</td><td>" + escapeHtml(medsToText(r.meds)) + "</td></tr>"; }).join("");
+  }
+
+  $("view-historial").addEventListener("click", async function (e) {
+    var link = e.target.closest("#cargarComoPaciente");
+    if (!link) return;
+    var dni = link.dataset.dni;
+    goToTab("pacientes");
+    var yaExiste = state.pacientes.find(function (p) { return (p.dni || "") === dni; });
+    if (yaExiste) { showMsg($("msgPaciente"), "Ese paciente ya está cargado en el sistema.", "warn"); return; }
+    $("pacNombre").value = link.dataset.nombre;
+    $("pacDni").value = dni;
+  });
+
+  // ---------- Estimación de compra ----------
+  function normalizeMedName(s) { return String(s || "").toUpperCase().replace(/\s+/g, " ").replace(/\.$/, "").trim(); }
+  function computeConsumoPromedio() {
+    var porMesMed = {}, mesesSet = {};
+    historialData.forEach(function (r) {
+      var ym = (r.fecha || "").slice(0, 7); if (ym.length !== 7) return;
+      mesesSet[ym] = true;
+      r.meds.forEach(function (m) {
+        var qty = parseFloat(m.cantidad); if (!qty || isNaN(qty)) return;
+        var key = normalizeMedName(m.nombre);
+        if (!porMesMed[ym]) porMesMed[ym] = {};
+        porMesMed[ym][key] = (porMesMed[ym][key] || 0) + qty;
+      });
+    });
+    var mesesOrdenados = Object.keys(mesesSet).sort();
+    var ventana = mesesOrdenados.slice(-6);
+    var totales = {};
+    ventana.forEach(function (ym) { var pm = porMesMed[ym] || {}; Object.keys(pm).forEach(function (k) { totales[k] = (totales[k] || 0) + pm[k]; }); });
+    var numMeses = ventana.length || 1;
+    var promedios = {}; Object.keys(totales).forEach(function (k) { promedios[k] = totales[k] / numMeses; });
+    return { promedios: promedios, ventana: ventana };
+  }
+  var compraRowsCache = [];
+  function renderCompra() {
+    if (!historialData.length || !state.medicamentos.length) { $("compraBody").innerHTML = '<tr><td colspan="5" class="empty-note">Cargando datos…</td></tr>'; return; }
+    var calc = computeConsumoPromedio();
+    var rows = state.medicamentos.map(function (m) {
+      var key = normalizeMedName(m.nombre); var prom = calc.promedios[key] || 0;
+      var stock = Number(m.stock_actual || 0); var meses = prom > 0 ? (stock / prom) : null;
+      return { nombre: m.nombre, unidad: m.unidad, promedio: prom, stock: stock, meses: meses };
+    }).filter(function (r) { return r.promedio > 0; });
+    rows.sort(function (a, b) { return (a.meses === null ? Infinity : a.meses) - (b.meses === null ? Infinity : b.meses); });
+    compraRowsCache = rows;
+    if (!rows.length) { $("compraBody").innerHTML = '<tr><td colspan="5" class="empty-note">No se pudieron relacionar los nombres.</td></tr>'; return; }
+    $("compraBody").innerHTML = rows.map(function (r) {
+      var badge = r.meses === null ? "" : r.meses < 1 ? '<span class="badge out">Comprar ya</span>' : r.meses < 2 ? '<span class="badge low">Comprar pronto</span>' : '<span class="badge ok">OK</span>';
+      return "<tr><td>" + escapeHtml(r.nombre) + '</td><td class="num tabular">' + r.promedio.toFixed(0) + " " + escapeHtml(r.unidad) + '</td><td class="num tabular">' + r.stock + '</td><td class="num tabular">' + (r.meses === null ? "—" : r.meses.toFixed(1)) + "</td><td>" + badge + "</td></tr>";
+    }).join("");
+    $("compraHint").textContent = "Promedio sobre " + calc.ventana.length + " mes(es) de la planilla anterior" + (calc.ventana.length ? " (" + calc.ventana[0] + " a " + calc.ventana[calc.ventana.length - 1] + ")" : "") + ".";
+  }
+  $("btnExportCompra").addEventListener("click", function () {
+    if (!compraRowsCache.length) { showMsg($("msgCompra"), "No hay datos para exportar.", "warn"); return; }
+    var lines = ["Medicamento,Unidad,Salida mensual promedio,Stock actual,Meses de stock"];
+    compraRowsCache.forEach(function (r) { lines.push([r.nombre, r.unidad, r.promedio.toFixed(1), r.stock, r.meses === null ? "" : r.meses.toFixed(1)].join(",")); });
+    downloadCsv(lines.join("\n"), "estimacion-compra.csv");
+  });
+
+  function downloadCsv(csv, filename) {
+    var blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  }
+  function csvCell(v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function csvRow(arr) { return arr.map(csvCell).join(","); }
+
+  // ---------- Backoffice: copia de seguridad completa ----------
+  async function fetchAllRows(table, orderCol) {
+    var all = [], from = 0, pageSize = 1000;
+    while (true) {
+      var q = sb.from(table).select("*").range(from, from + pageSize - 1);
+      if (orderCol) q = q.order(orderCol, { ascending: true });
+      var { data, error } = await q;
+      if (error) throw error;
+      all = all.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+    return all;
+  }
+
+  $("btnExportPacientes").addEventListener("click", async function () {
+    var btn = this; btn.disabled = true;
+    try {
+      var pacientes = await fetchAllRows("pacientes", "nombre");
+      var lines = [csvRow(["Nombre", "DNI", "Teléfono", "Notas"])];
+      pacientes.forEach(function (p) { lines.push(csvRow([p.nombre, p.dni, p.telefono || "", p.notas || ""])); });
+      downloadCsv(lines.join("\n"), "pacientes-" + todayISO() + ".csv");
+      showMsg($("msgBackoffice"), pacientes.length + " paciente(s) exportado(s).", "ok");
+    } catch (err) { showMsg($("msgBackoffice"), "No se pudo exportar: " + (err.message || err), "err"); }
+    finally { btn.disabled = false; }
+  });
+
+  $("btnExportHistoricoCompleto").addEventListener("click", async function () {
+    var btn = this; btn.disabled = true;
+    try {
+      var movs = await fetchAllRows("movimientos", "fecha");
+      var dniPorId = {}; state.pacientes.forEach(function (p) { dniPorId[p.id] = p.dni || ""; });
+      var lines = [csvRow(["Fecha", "Tipo", "Medicamento", "Paciente", "DNI", "Cantidad", "Registrado por", "Nota"])];
+      movs.forEach(function (m) {
+        lines.push(csvRow([fmtDate(m.fecha), m.tipo, m.medicamento_nombre, m.paciente_nombre || "", dniPorId[m.paciente_id] || "", m.cantidad, m.registrado_por || "", m.nota || ""]));
+      });
+      downloadCsv(lines.join("\n"), "historial-completo-retiros-" + todayISO() + ".csv");
+      showMsg($("msgBackoffice"), movs.length + " movimiento(s) exportado(s) (todo lo cargado desde que existe el sistema).", "ok");
+    } catch (err) { showMsg($("msgBackoffice"), "No se pudo exportar: " + (err.message || err), "err"); }
+    finally { btn.disabled = false; }
+  });
+
+  $("btnExportConsumoMensual").addEventListener("click", async function () {
+    var btn = this; btn.disabled = true;
+    try {
+      var movs = await fetchAllRows("movimientos", "fecha");
+      var porMesMed = {};
+      movs.forEach(function (m) {
+        if (m.tipo !== "retiro") return;
+        var ym = (m.fecha || "").slice(0, 7); if (ym.length !== 7) return;
+        var key = ym + "||" + m.medicamento_nombre;
+        porMesMed[key] = (porMesMed[key] || 0) + Number(m.cantidad || 0);
+      });
+      var keys = Object.keys(porMesMed).sort();
+      var lines = [csvRow(["Mes", "Medicamento", "Cantidad retirada"])];
+      keys.forEach(function (k) { var parts = k.split("||"); lines.push(csvRow([parts[0], parts[1], porMesMed[k]])); });
+      downloadCsv(lines.join("\n"), "consumo-mensual-" + todayISO() + ".csv");
+      showMsg($("msgBackoffice"), keys.length + " fila(s) de consumo mensual exportadas, en base a " + movs.filter(function (m) { return m.tipo === "retiro"; }).length + " retiro(s) cargados en el sistema.", "ok");
+    } catch (err) { showMsg($("msgBackoffice"), "No se pudo exportar: " + (err.message || err), "err"); }
+    finally { btn.disabled = false; }
+  });
+
+  // ---------- Reportes mensuales ----------
+  $("repMes").value = todayISO().slice(0, 7);
+  $("repMes").addEventListener("change", renderReporte);
+  $("btnExportCsv").addEventListener("click", function () {
+    if (!reporteCache.mes || !reporteCache.filas.length) { showMsg($("msgReporte"), "No hay datos para exportar en el mes seleccionado.", "warn"); return; }
+    var lines = ["Medicamento,Entradas,Retiros,Ajustes,Balance"];
+    reporteCache.filas.forEach(function (r) { lines.push([r.nombre, r.entradas, -r.retiros, r.ajustes, r.entradas - r.retiros].join(",")); });
+    downloadCsv(lines.join("\n"), "reporte-" + reporteCache.mes + ".csv");
+  });
+
+  var reporteCache = { mes: null, filas: [] };
+  async function renderReporte() {
+    var mes = $("repMes").value; if (!mes) return;
+    $("repBody").innerHTML = '<tr><td colspan="5" class="empty-note">Calculando…</td></tr>';
+    var start = mes + "-01";
+    var d = new Date(mes + "-01T00:00:00");
+    var end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    var endISO = end.toISOString().slice(0, 10);
+    var { data: movs } = await sb.from("movimientos").select("*").gte("fecha", start).lt("fecha", endISO);
+    movs = movs || [];
+    var porMed = {};
+    movs.forEach(function (m) {
+      var key = m.medicamento_nombre || "—";
+      if (!porMed[key]) porMed[key] = { entradas: 0, retiros: 0, ajustes: 0 };
+      if (m.tipo === "entrada") porMed[key].entradas += Number(m.cantidad || 0);
+      else if (m.tipo === "retiro") porMed[key].retiros += Number(m.cantidad || 0);
+      else porMed[key].ajustes += Number(m.cantidad || 0);
+    });
+    var nombres = Object.keys(porMed).sort();
+    reporteCache = { mes: mes, filas: nombres.map(function (n) { return Object.assign({ nombre: n }, porMed[n]); }) };
+    if (!nombres.length) { $("repBody").innerHTML = '<tr><td colspan="5" class="empty-note">Sin movimientos en ese mes.</td></tr>'; $("repHint").textContent = ""; return; }
+    var totEnt = 0, totRet = 0, totAjs = 0;
+    var rows = nombres.map(function (n) {
+      var r = porMed[n]; totEnt += r.entradas; totRet += r.retiros; totAjs += r.ajustes;
+      return "<tr><td>" + escapeHtml(n) + '</td><td class="num tabular">+' + r.entradas + '</td><td class="num tabular">-' + r.retiros + '</td><td class="num tabular">' + r.ajustes + '</td><td class="num tabular">' + (r.entradas - r.retiros) + "</td></tr>";
+    }).join("");
+    rows += '<tr class="totals-row"><td>Total</td><td class="num tabular">+' + totEnt + '</td><td class="num tabular">-' + totRet + '</td><td class="num tabular">' + totAjs + '</td><td class="num tabular">' + (totEnt - totRet) + "</td></tr>";
+    $("repBody").innerHTML = rows;
+    $("repHint").textContent = movs.length + " movimiento(s) en " + mes;
+  }
+})();
+</script>
+</body>
+</html>
