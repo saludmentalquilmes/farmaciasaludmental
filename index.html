@@ -342,8 +342,8 @@
       <div class="panel">
         <div class="panel-head"><h2>Vademecum</h2><input type="text" id="buscarMedicamento" class="search-input" placeholder="Buscar…"></div>
         <div class="table-wrap"><table>
-          <thead><tr><th>Nombre</th><th>Unidad</th><th class="num">Stock</th><th class="num">Mínimo</th><th></th></tr></thead>
-          <tbody id="medBody"><tr><td colspan="5" class="empty-note">Cargando…</td></tr></tbody>
+          <thead><tr><th>Nombre</th><th>Unidad</th><th class="num">Stock</th><th class="num">Mínimo</th><th>Alerta</th><th></th></tr></thead>
+          <tbody id="medBody"><tr><td colspan="6" class="empty-note">Cargando…</td></tr></tbody>
         </table></div>
         <div id="msgVademecum"></div>
       </div>
@@ -475,8 +475,9 @@
   // en el encabezado con un numerito, como cualquier notificación — se abre solo si lo tocás.
   var ultimaAlertaClave = null;
   function renderAlertBanner(meds) {
-    var agotados = meds.filter(function (m) { return stockStatus(m) === "out"; });
-    var bajos = meds.filter(function (m) { return stockStatus(m) === "low"; });
+    var medsConAlerta = meds.filter(function (m) { return !m.silenciar_alerta; });
+    var agotados = medsConAlerta.filter(function (m) { return stockStatus(m) === "out"; });
+    var bajos = medsConAlerta.filter(function (m) { return stockStatus(m) === "low"; });
     var bell = $("alertBell"), badge = $("alertBellBadge"), panel = $("alertBellPanel");
     var total = agotados.length + bajos.length;
 
@@ -543,13 +544,18 @@
       return "<tr><td>" + escapeHtml(m.nombre) + "</td><td>" + escapeHtml(m.unidad) + '</td><td class="num tabular">' + stockBarHtml(m) + Number(m.stock_actual || 0) + "</td><td>" + statusBadge(stockStatus(m)) + "</td></tr>";
     }).join("") : '<tr><td colspan="4" class="empty-note">Todavía no hay medicamentos cargados.</td></tr>';
     $("statMeds").textContent = meds.length;
-    $("statAlerts").textContent = meds.filter(function (m) { return stockStatus(m) !== "ok"; }).length;
+    $("statAlerts").textContent = meds.filter(function (m) { return !m.silenciar_alerta && stockStatus(m) !== "ok"; }).length;
     renderAlertBanner(meds);
     renderMedTable();
     if (typeof renderCompra === "function") renderCompra();
+    // El select de Ingresos muestra TODOS los medicamentos (justamente ahí es donde se carga
+    // stock a uno que está en 0). El de Retiros, en cambio, no debería ni mostrar como opción
+    // un medicamento agotado — no hay nada para entregar.
     var options = '<option value="" disabled selected>Elegí un medicamento…</option>' + meds.map(function (m) { return '<option value="' + m.id + '">' + escapeHtml(m.nombre) + " (" + escapeHtml(m.unidad) + ")</option>"; }).join("");
     $("entMedicamento").innerHTML = options;
-    medOptionsHtml = options;
+    var medsConStock = meds.filter(function (m) { return stockStatus(m) !== "out"; });
+    medOptionsHtml = '<option value="" disabled selected>Elegí un medicamento…</option>' + medsConStock.map(function (m) { return '<option value="' + m.id + '">' + escapeHtml(m.nombre) + " (" + escapeHtml(m.unidad) + ")</option>"; }).join("")
+      + (medsConStock.length < meds.length ? '<option value="" disabled>— Agotados, no disponibles para retiro —</option>' : "");
     refrescarOpcionesLineas();
   }
 
@@ -558,7 +564,7 @@
     var q = $("buscarMedicamento").value.toLowerCase().trim();
     var meds = state.medicamentos.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre); });
     var filtered = meds.filter(function (m) { return !q || m.nombre.toLowerCase().indexOf(q) > -1; });
-    if (!filtered.length) { $("medBody").innerHTML = '<tr><td colspan="5" class="empty-note">Sin medicamentos que coincidan.</td></tr>'; return; }
+    if (!filtered.length) { $("medBody").innerHTML = '<tr><td colspan="6" class="empty-note">Sin medicamentos que coincidan.</td></tr>'; return; }
     $("medBody").innerHTML = filtered.map(function (m) {
       var editingStock = medEditing.id === m.id && medEditing.field === "stock";
       var editingMin = medEditing.id === m.id && medEditing.field === "min";
@@ -567,7 +573,8 @@
       var actions = (editingStock || editingMin)
         ? '<button type="button" class="btn btn-primary btn-sm" data-save="' + m.id + '" data-field="' + (editingStock ? "stock" : "min") + '">Guardar</button> <button type="button" class="btn btn-ghost btn-sm" data-canceledit="1">Cancelar</button>'
         : '<button type="button" class="btn btn-ghost btn-sm" data-adjust="' + m.id + '">Ajustar stock</button><button type="button" class="btn btn-ghost btn-sm" data-editmin="' + m.id + '">Editar mínimo</button>';
-      return "<tr><td>" + escapeHtml(m.nombre) + "</td><td>" + escapeHtml(m.unidad) + '</td><td class="num tabular">' + stockCell + '</td><td class="num tabular">' + minCell + '</td><td class="row-actions">' + actions + "</td></tr>";
+      var alertaCell = '<label class="checkbox-row" title="Si lo tildás, este medicamento nunca va a aparecer en la campanita de alertas, aunque esté bajo o agotado."><input type="checkbox" data-silenciar="' + m.id + '"' + (m.silenciar_alerta ? " checked" : "") + '> Silenciar</label>';
+      return "<tr><td>" + escapeHtml(m.nombre) + "</td><td>" + escapeHtml(m.unidad) + '</td><td class="num tabular">' + stockCell + '</td><td class="num tabular">' + minCell + '</td><td>' + alertaCell + '</td><td class="row-actions">' + actions + "</td></tr>";
     }).join("");
     var input = document.getElementById("editInput");
     if (input) { input.focus(); input.select(); }
@@ -858,6 +865,22 @@
     if (error) { showMsg($("msgMedicamento"), error.code === "23505" ? "Ya existe un medicamento con ese nombre." : "No se pudo agregar el medicamento.", "err"); return; }
     showMsg($("msgMedicamento"), "Medicamento agregado.", "ok");
     e.target.reset(); $("medStockMinimo").value = 10; $("medStockInicial").value = 0;
+  });
+
+  // Tilde de "Silenciar" por medicamento (pedido: que algunos no figuren nunca en la campanita de
+  // alertas, aunque estén bajos o agotados — por ejemplo vademecum que hace meses no se usa).
+  $("medBody").addEventListener("change", async function (e) {
+    var chk = e.target.closest("input[data-silenciar]");
+    if (!chk) return;
+    var id = chk.dataset.silenciar;
+    var med = state.medicamentos.find(function (m) { return m.id === id; });
+    var valorNuevo = chk.checked;
+    chk.disabled = true;
+    var { error } = await sb.from("medicamentos").update({ silenciar_alerta: valorNuevo }).eq("id", id);
+    chk.disabled = false;
+    if (error) { chk.checked = !valorNuevo; showMsg($("msgVademecum"), "No se pudo guardar.", "err"); return; }
+    if (med) med.silenciar_alerta = valorNuevo;
+    renderAlertBanner(state.medicamentos);
   });
 
   $("medBody").addEventListener("click", async function (e) {
